@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#fff7e6" />
+<title>Sunflower Bouquet</title>
+<style>
+  :root {
+    --bg1: #fff7e6;
+    --bg2: #ffe9c7;
+    --stem: #4e7a34;
+    --leaf: #6aa53f;
+    --petal: #ffc21a;
+    --petal-dark: #f2a200;
+    --center: #7a4a1e;
+    --center-dark: #5a3312;
+    --wrap: #d8b98a;
+    --ink: #3a2a12;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: radial-gradient(circle at 50% 30%, var(--bg1), var(--bg2));
+    font-family: "Segoe UI", system-ui, sans-serif;
+    overflow: hidden;
+  }
+
+  .stage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2em;
+    overflow-y: auto;
+    /* respect notches / safe areas on mobile */
+    padding: calc(env(safe-area-inset-top) + 12px) env(safe-area-inset-right)
+             calc(env(safe-area-inset-bottom) + 16px) env(safe-area-inset-left);
+  }
+
+  svg {
+    width: min(82vw, 56vh, 520px);
+    height: auto;
+    display: block;
+    overflow: visible;
+    flex: 0 0 auto;
+  }
+
+  h1 {
+    margin: 0.4em 0 0;
+    font-size: clamp(1.1rem, 5vw, 1.9rem);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    opacity: 0;
+    animation: fadeUp 0.9s ease 2.8s forwards;
+  }
+
+  .replay {
+    margin-top: 0.9em;
+    padding: 0.55em 1.3em;
+    font-size: clamp(0.85rem, 3.6vw, 1rem);
+    font-family: inherit;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.55);
+    border: 1.5px solid rgba(122, 74, 30, 0.35);
+    border-radius: 999px;
+    cursor: pointer;
+    opacity: 0;
+    animation: fadeUp 0.9s ease 3.0s forwards;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .replay:hover { background: rgba(255, 255, 255, 0.85); }
+  .replay:active { transform: scale(0.96); }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ---- drawing animation ---- */
+  /* Every stroked path is dashed, then the dash offset is animated to 0
+     so the line appears to be drawn. Filled shapes fade in afterwards. */
+  .draw {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: var(--len);
+    stroke-dashoffset: var(--len);
+    animation: drawLine 1s ease forwards;
+    animation-delay: var(--delay, 0s);
+  }
+  @keyframes drawLine { to { stroke-dashoffset: 0; } }
+
+  .fill {
+    opacity: 0;
+    animation: fillIn 0.7s ease forwards;
+    animation-delay: var(--delay, 0s);
+  }
+  @keyframes fillIn { to { opacity: 1; } }
+
+  /* gentle sway once everything is drawn */
+  .bouquet {
+    transform-origin: 50% 100%;
+    animation: sway 5s ease-in-out 3.0s infinite;
+  }
+  @keyframes sway {
+    0%, 100% { transform: rotate(0deg); }
+    50%      { transform: rotate(1.4deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .draw, .fill, h1, .replay, .bouquet { animation: none !important; opacity: 1; }
+    .draw { stroke-dashoffset: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <!-- viewBox keeps everything crisp and perfectly scalable on any screen -->
+    <svg id="art" viewBox="0 0 400 460" role="img" aria-label="A drawn bouquet of sunflowers">
+      <g class="bouquet"></g>
+    </svg>
+    <h1>For you 🌻</h1>
+    <button class="replay" type="button" onclick="drawBouquet()">Draw again</button>
+  </div>
+
+<script>
+(function () {
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const group = document.querySelector(".bouquet");
+
+  // A single sunflower, built from parametric petals + a seeded center.
+  // cx,cy = flower center, r = radius, delay = when its draw starts.
+  function sunflower(cx, cy, r, delay) {
+    const parts = [];
+    const petalCount = 13;
+    const petalLen = r * 1.5;
+    const petalW = r * 0.5;
+
+    // two rings of petals for fullness
+    for (let ring = 0; ring < 2; ring++) {
+      const rr = ring === 0 ? petalLen : petalLen * 0.72;
+      const offset = ring === 0 ? 0 : Math.PI / petalCount;
+      for (let i = 0; i < petalCount; i++) {
+        const a = (i / petalCount) * Math.PI * 2 + offset;
+        const tipX = cx + Math.cos(a) * rr;
+        const tipY = cy + Math.sin(a) * rr;
+        const baseX = cx + Math.cos(a) * r * 0.55;
+        const baseY = cy + Math.sin(a) * r * 0.55;
+        // perpendicular for petal width
+        const px = Math.cos(a + Math.PI / 2) * petalW * (ring ? 0.7 : 1);
+        const py = Math.sin(a + Math.PI / 2) * petalW * (ring ? 0.7 : 1);
+        const d =
+          `M ${baseX} ${baseY} ` +
+          `Q ${(baseX + tipX) / 2 + px} ${(baseY + tipY) / 2 + py} ${tipX} ${tipY} ` +
+          `Q ${(baseX + tipX) / 2 - px} ${(baseY + tipY) / 2 - py} ${baseX} ${baseY} Z`;
+        parts.push({
+          d,
+          fill: ring === 0 ? "var(--petal)" : "var(--petal-dark)",
+          stroke: true,
+          delay: delay + i * 0.012 + ring * 0.15,
+        });
+      }
+    }
+
+    // center disc
+    parts.push({
+      d: circlePath(cx, cy, r * 0.6),
+      fill: "var(--center)",
+      stroke: true,
+      delay: delay + 0.35,
+    });
+    // inner ring for depth
+    parts.push({
+      d: circlePath(cx, cy, r * 0.42),
+      fill: "var(--center-dark)",
+      stroke: false,
+      delay: delay + 0.45,
+    });
+
+    return parts;
+  }
+
+  function circlePath(cx, cy, r) {
+    return (
+      `M ${cx - r} ${cy} ` +
+      `a ${r} ${r} 0 1 0 ${r * 2} 0 ` +
+      `a ${r} ${r} 0 1 0 ${-r * 2} 0 Z`
+    );
+  }
+
+  // one stem with a leaf
+  function stem(x1, y1, x2, y2, leafSide, delay) {
+    const parts = [];
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+    // curved stem
+    const cxp = midX + (x1 - x2) * 0.15 + leafSide * 8;
+    parts.push({
+      d: `M ${x2} ${y2} Q ${cxp} ${midY} ${x1} ${y1}`,
+      fill: "none",
+      stroke: true,
+      strokeColor: "var(--stem)",
+      width: 4,
+      delay,
+    });
+    // a leaf partway up
+    const lx = midX + leafSide * 4;
+    const ly = midY + 18;
+    const tipX = lx + leafSide * 34;
+    const tipY = ly - 14;
+    parts.push({
+      d:
+        `M ${lx} ${ly} ` +
+        `Q ${lx + leafSide * 20} ${ly - 26} ${tipX} ${tipY} ` +
+        `Q ${lx + leafSide * 22} ${ly + 6} ${lx} ${ly} Z`,
+      fill: "var(--leaf)",
+      stroke: true,
+      strokeColor: "var(--stem)",
+      delay: delay + 0.25,
+    });
+    return parts;
+  }
+
+  // wrapping cone (kraft paper)
+  function wrapper(delay) {
+    return [
+      {
+        d: "M 130 300 L 200 460 L 270 300 Q 200 340 130 300 Z",
+        fill: "var(--wrap)",
+        stroke: true,
+        delay,
+      },
+      {
+        d: "M 155 300 L 200 448",
+        fill: "none",
+        stroke: true,
+        strokeColor: "rgba(58,42,18,0.4)",
+        width: 1.6,
+        delay: delay + 0.2,
+      },
+      {
+        d: "M 245 300 L 200 448",
+        fill: "none",
+        stroke: true,
+        strokeColor: "rgba(58,42,18,0.4)",
+        width: 1.6,
+        delay: delay + 0.25,
+      },
+    ];
+  }
+
+  // build the whole scene as an ordered list of parts
+  function buildScene() {
+    let parts = [];
+    // stems first (drawn from the wrap upward)
+    parts = parts.concat(stem(150, 135, 200, 340, -1, 0.1));
+    parts = parts.concat(stem(250, 135, 200, 340, 1, 0.3));
+    // flowers
+    parts = parts.concat(sunflower(150, 120, 44, 0.8));
+    parts = parts.concat(sunflower(250, 120, 44, 1.2));
+    // wrapper last, on top of stem bottoms
+    parts = parts.concat(wrapper(2.0));
+    return parts;
+  }
+
+  window.drawBouquet = function () {
+    group.innerHTML = "";
+    const parts = buildScene();
+    for (const p of parts) {
+      const path = document.createElementNS(SVGNS, "path");
+      path.setAttribute("d", p.d);
+
+      if (p.stroke) {
+        // temporary node in DOM needed to measure length
+        path.classList.add("draw");
+        path.style.setProperty("--delay", p.delay + "s");
+        if (p.strokeColor) path.style.stroke = p.strokeColor;
+        if (p.width) path.style.strokeWidth = p.width;
+        group.appendChild(path);
+        const len = path.getTotalLength();
+        path.style.setProperty("--len", len);
+
+        // after the stroke finishes, drop in the fill color
+        if (p.fill && p.fill !== "none") {
+          path.addEventListener("animationend", function once(e) {
+            if (e.animationName !== "drawLine") return;
+            path.removeEventListener("animationend", once);
+            path.style.fill = p.fill;
+            path.style.transition = "fill 0.5s ease";
+          });
+        }
+      } else {
+        // pure fill shape (no outline drawing)
+        path.classList.add("fill");
+        path.style.setProperty("--delay", p.delay + "s");
+        path.style.fill = p.fill;
+        group.appendChild(path);
+      }
+    }
+  };
+
+  drawBouquet();
+})();
+</script>
+</body>
+</html>
